@@ -34,7 +34,7 @@ func main() {
 	embedder := getEmbedder(&client)
 	pineconeVectorDB := getPineconeVectorDB()
 
-	inputKnowledgeBase(ctx, chunker, embedder, pineconeVectorDB)
+	inputPeopleKnowledgeBase(ctx, chunker, embedder, pineconeVectorDB)
 
 	logger := logger.NewLogger(ctx)
 	router := mux.NewRouter()
@@ -174,8 +174,8 @@ func getPineconeVectorDB() *vectordb.PineconeVectorDB {
 
 }
 
-func inputKnowledgeBase(ctx context.Context, chunker *chunks.Chunker, embedder *embeddings.EmbeddingService, pineconeVectorDB *vectordb.PineconeVectorDB) {
-	textBytes, err := os.ReadFile("./data.md")
+func inputVehiclesKnowledgeBase(ctx context.Context, chunker *chunks.Chunker, embedder *embeddings.EmbeddingService, pineconeVectorDB *vectordb.PineconeVectorDB) {
+	textBytes, err := os.ReadFile("./dataVehicles.md")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -189,7 +189,40 @@ func inputKnowledgeBase(ctx context.Context, chunker *chunks.Chunker, embedder *
 		log.Fatalf("Embedding error: %v", err)
 	}
 
-	count, err := pineconeVectorDB.StoreEmbeddings(ctx, domainEmbeddings)
+	count, err := pineconeVectorDB.StoreEmbeddings(
+		ctx,
+		domainEmbeddings,
+		map[string]interface{}{
+			"type": "vehicles",
+		})
+	if err != nil {
+		log.Fatalf("Failed to store embeddings: %v", err)
+	}
+
+	fmt.Sprintf("Stored %d embeddings in Pinecone index %s\n", count, os.Getenv("PINECONE_INDEX"))
+}
+
+func inputPeopleKnowledgeBase(ctx context.Context, chunker *chunks.Chunker, embedder *embeddings.EmbeddingService, pineconeVectorDB *vectordb.PineconeVectorDB) {
+	textBytes, err := os.ReadFile("./dataPeople.md")
+	if err != nil {
+		log.Fatal(err)
+	}
+	text := string(textBytes)
+
+	chunks := chunker.Chunk(text)
+	fmt.Printf("Generated %d chunks\n", len(chunks))
+
+	domainEmbeddings, err := embedder.Embed(ctx, chunks)
+	if err != nil {
+		log.Fatalf("Embedding error: %v", err)
+	}
+
+	count, err := pineconeVectorDB.StoreEmbeddings(
+		ctx,
+		domainEmbeddings,
+		map[string]interface{}{
+			"type": "people",
+		})
 	if err != nil {
 		log.Fatalf("Failed to store embeddings: %v", err)
 	}

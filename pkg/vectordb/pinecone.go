@@ -25,7 +25,7 @@ func NewPineconeVectorDB(threshold float32, topKResultsNumber int, index string,
 	}
 }
 
-func (db *PineconeVectorDB) StoreEmbeddings(ctx context.Context, embeddings []*domain.Embeddings) (int, error) {
+func (db *PineconeVectorDB) StoreEmbeddings(ctx context.Context, embeddings []*domain.Embeddings, extraMetadata map[string]interface{}) (int, error) {
 	idx, err := db.client.DescribeIndex(ctx, db.index)
 	if err != nil {
 		return 0, err
@@ -45,6 +45,15 @@ func (db *PineconeVectorDB) StoreEmbeddings(ctx context.Context, embeddings []*d
 		})
 		if err != nil {
 			return 0, err
+		}
+
+		if len(extraMetadata) > 0 {
+			for key, value := range extraMetadata {
+				md.Fields[key], err = structpb.NewValue(value)
+				if err != nil {
+					return 0, err
+				}
+			}
 		}
 
 		vectorToFloat32 := helpers.Float64ToFloat32(embedding.Embeddings)
