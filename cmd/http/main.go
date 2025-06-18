@@ -10,7 +10,7 @@ import (
 	"github.com/loukaspe/jedi-team-challenge/pkg/chunks"
 	"github.com/loukaspe/jedi-team-challenge/pkg/embeddings"
 	"github.com/loukaspe/jedi-team-challenge/pkg/logger"
-	"github.com/loukaspe/jedi-team-challenge/pkg/server"
+	http2 "github.com/loukaspe/jedi-team-challenge/pkg/server/http"
 	"github.com/loukaspe/jedi-team-challenge/pkg/vectordb"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -28,13 +28,13 @@ func main() {
 	ctx := context.Background()
 	getEnv()
 
-	encoder := getEncoder()
+	//encoder := getEncoder()
 	client := getOpenAIClient()
-	chunker := getChunker(encoder)
+	//chunker := getChunker(encoder)
 	embedder := getEmbedder(&client)
 	pineconeVectorDB := getPineconeVectorDB()
 
-	inputPeopleKnowledgeBase(ctx, chunker, embedder, pineconeVectorDB)
+	//inputPeopleKnowledgeBase(ctx, chunker, embedder, pineconeVectorDB)
 
 	logger := logger.NewLogger(ctx)
 	router := mux.NewRouter()
@@ -44,7 +44,7 @@ func main() {
 	}
 	db := getDB()
 
-	server := server.NewServer(db, router, httpServer, logger, &client, embedder, pineconeVectorDB)
+	server := http2.NewServer(db, router, httpServer, logger, &client, embedder, pineconeVectorDB)
 
 	server.Run()
 }

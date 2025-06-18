@@ -1,9 +1,9 @@
-package server
+package http
 
 import (
 	"github.com/loukaspe/jedi-team-challenge/internal/core/services"
-	"github.com/loukaspe/jedi-team-challenge/internal/handlers"
-	"github.com/loukaspe/jedi-team-challenge/internal/handlers/chatSessions"
+	http2 "github.com/loukaspe/jedi-team-challenge/internal/handlers/http"
+	chatSessions2 "github.com/loukaspe/jedi-team-challenge/internal/handlers/http/chatSessions"
 	"github.com/loukaspe/jedi-team-challenge/internal/repositories"
 
 	"github.com/loukaspe/jedi-team-challenge/pkg/auth"
@@ -30,7 +30,7 @@ import (
 // @produce	json
 func (s *Server) initializeRoutes() {
 	// health check
-	healthCheckHandler := handlers.NewHealthCheckHandler(s.DB)
+	healthCheckHandler := http2.NewHealthCheckHandler(s.DB)
 	s.router.HandleFunc("/health-check", healthCheckHandler.HealthCheckController).Methods("GET")
 
 	// auth
@@ -39,8 +39,8 @@ func (s *Server) initializeRoutes() {
 		os.Getenv("JWT_SIGNING_METHOD"),
 	)
 	jwtService := services.NewJwtService(jwtMechanism)
-	jwtMiddleware := handlers.NewAuthenticationMw(jwtMechanism)
-	jwtHandler := handlers.NewJwtClaimsHandler(jwtService, s.logger)
+	jwtMiddleware := http2.NewAuthenticationMw(jwtMechanism)
+	jwtHandler := http2.NewJwtClaimsHandler(jwtService, s.logger)
 
 	s.router.HandleFunc("/token", jwtHandler.JwtTokenController).Methods(http.MethodPost)
 
@@ -52,10 +52,10 @@ func (s *Server) initializeRoutes() {
 	messageRepository := repositories.NewMessageRepository(s.DB)
 	messageService := services.NewMessageService(s.logger, messageRepository, chatSessionRepository, s.embedder, s.pineconeVectorDB, s.openAIClient)
 
-	createChatSessionHandler := chatSessions.NewCreateUserChatSessionHandler(chatSessionService, s.logger)
-	getChatSessionHandler := chatSessions.NewGetChatSessionHandler(chatSessionService, s.logger)
-	sendMessageHandler := chatSessions.NewSendMessageHandler(messageService, s.logger)
-	submitFeedbackHandler := chatSessions.NewSubmitFeedbackHandler(messageService, s.logger)
+	createChatSessionHandler := chatSessions2.NewCreateUserChatSessionHandler(chatSessionService, s.logger)
+	getChatSessionHandler := chatSessions2.NewGetChatSessionHandler(chatSessionService, s.logger)
+	sendMessageHandler := chatSessions2.NewSendMessageHandler(messageService, s.logger)
+	submitFeedbackHandler := chatSessions2.NewSubmitFeedbackHandler(messageService, s.logger)
 
 	protected.HandleFunc("/users/{user_id}/chat-sessions", createChatSessionHandler.CreateUserChatSessionController).Methods("POST")
 	protected.HandleFunc("/users/{user_id}/chat-sessions", getChatSessionHandler.GetUserChatSessionsController).Methods("GET")

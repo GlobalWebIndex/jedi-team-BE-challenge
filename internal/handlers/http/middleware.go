@@ -1,4 +1,4 @@
-package handlers
+package http
 
 import (
 	"github.com/loukaspe/jedi-team-challenge/internal/core/domain"
