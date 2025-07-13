@@ -11,7 +11,9 @@ import (
 	"github.com/loukaspe/jedi-team-challenge/pkg/embeddings"
 	"github.com/loukaspe/jedi-team-challenge/pkg/logger"
 	http2 "github.com/loukaspe/jedi-team-challenge/pkg/server/http"
+	"github.com/loukaspe/jedi-team-challenge/pkg/server/mcp"
 	"github.com/loukaspe/jedi-team-challenge/pkg/vectordb"
+	"github.com/mark3labs/mcp-go/server"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/pinecone-io/go-pinecone/v3/pinecone"
@@ -44,7 +46,12 @@ func main() {
 	}
 	db := getDB()
 
-	server := http2.NewServer(db, router, httpServer, logger, &client, embedder, pineconeVectorDB)
+	mcpServer := mcp.NewServer(server.NewMCPServer(
+		os.Getenv("MCP_SERVER_NAME"),
+		os.Getenv("MCP_SERVER_VERSION"),
+	))
+
+	server := http2.NewServer(db, router, httpServer, mcpServer, logger, &client, embedder, pineconeVectorDB)
 
 	server.Run()
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/loukaspe/jedi-team-challenge/pkg/embeddings"
 	"github.com/loukaspe/jedi-team-challenge/pkg/logger"
+	"github.com/loukaspe/jedi-team-challenge/pkg/server/mcp"
 	"github.com/loukaspe/jedi-team-challenge/pkg/vectordb"
 	"github.com/openai/openai-go"
 	log "github.com/sirupsen/logrus"
@@ -20,6 +21,7 @@ import (
 type Server struct {
 	DB               *gorm.DB
 	httpServer       *http.Server
+	mcpServer        *mcp.Server
 	router           *mux.Router
 	logger           logger.LoggerInterface
 	openAIClient     *openai.Client
@@ -31,6 +33,7 @@ func NewServer(
 	db *gorm.DB,
 	router *mux.Router,
 	httpServer *http.Server,
+	mcpServer *mcp.Server,
 	logger logger.LoggerInterface,
 	openAIClient *openai.Client,
 	embedder *embeddings.EmbeddingService,
@@ -40,6 +43,7 @@ func NewServer(
 		DB:               db,
 		router:           router,
 		httpServer:       httpServer,
+		mcpServer:        mcpServer,
 		logger:           logger,
 		openAIClient:     openAIClient,
 		embedder:         embedder,

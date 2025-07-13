@@ -33,6 +33,10 @@ func (s *Server) initializeRoutes() {
 	healthCheckHandler := http2.NewHealthCheckHandler(s.DB)
 	s.router.HandleFunc("/health-check", healthCheckHandler.HealthCheckController).Methods("GET")
 
+	mcpSSEServer := s.mcpServer.InitialiseSSEServer()
+
+	s.router.HandleFunc("/mcp", mcpSSEServer.ServeHTTP)
+
 	// auth
 	jwtMechanism := auth.NewAuthMechanism(
 		os.Getenv("JWT_SECRET_KEY"),
