@@ -18,7 +18,7 @@ WORKDIR /app
 
 COPY .. .
 
-RUN GOOS=linux go build -gcflags='all=-N -l' -tags musl -a -installsuffix cgo -o main ./cmd/http/main.go
+RUN GOOS=linux go build -gcflags='all=-N -l' -tags musl -a -installsuffix cgo -o main ./cmd/main.go
 
 EXPOSE 8080
 EXPOSE 40000

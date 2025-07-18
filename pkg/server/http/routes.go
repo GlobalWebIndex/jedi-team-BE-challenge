@@ -1,9 +1,10 @@
 package http
 
 import (
+	"github.com/gorilla/websocket"
 	"github.com/loukaspe/jedi-team-challenge/internal/core/services"
-	http2 "github.com/loukaspe/jedi-team-challenge/internal/handlers/http"
-	chatSessions2 "github.com/loukaspe/jedi-team-challenge/internal/handlers/http/chatSessions"
+	httpHandlers "github.com/loukaspe/jedi-team-challenge/internal/handlers/http"
+	chatSessionHandlers "github.com/loukaspe/jedi-team-challenge/internal/handlers/http/chatSessions"
 	"github.com/loukaspe/jedi-team-challenge/internal/repositories"
 
 	"github.com/loukaspe/jedi-team-challenge/pkg/auth"
@@ -29,8 +30,17 @@ import (
 // @accept		json
 // @produce	json
 func (s *Server) initializeRoutes() {
+	var upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow all origins for demo
+		},
+	}
+
+	wsAddHandler := httpHandlers.NewAddHandler(&upgrader, s.logger)
+	wsSubtractHandler := httpHandlers.NewSubtractHandler(&upgrader, s.logger)
+
 	// health check
-	healthCheckHandler := http2.NewHealthCheckHandler(s.DB)
+	healthCheckHandler := httpHandlers.NewHealthCheckHandler(s.DB)
 	s.router.HandleFunc("/health-check", healthCheckHandler.HealthCheckController).Methods("GET")
 
 	mcpSSEServer := s.mcpServer.InitialiseSSEServer()
@@ -43,8 +53,8 @@ func (s *Server) initializeRoutes() {
 		os.Getenv("JWT_SIGNING_METHOD"),
 	)
 	jwtService := services.NewJwtService(jwtMechanism)
-	jwtMiddleware := http2.NewAuthenticationMw(jwtMechanism)
-	jwtHandler := http2.NewJwtClaimsHandler(jwtService, s.logger)
+	jwtMiddleware := httpHandlers.NewAuthenticationMw(jwtMechanism)
+	jwtHandler := httpHandlers.NewJwtClaimsHandler(jwtService, s.logger)
 
 	s.router.HandleFunc("/token", jwtHandler.JwtTokenController).Methods(http.MethodPost)
 
@@ -56,10 +66,10 @@ func (s *Server) initializeRoutes() {
 	messageRepository := repositories.NewMessageRepository(s.DB)
 	messageService := services.NewMessageService(s.logger, messageRepository, chatSessionRepository, s.embedder, s.pineconeVectorDB, s.openAIClient)
 
-	createChatSessionHandler := chatSessions2.NewCreateUserChatSessionHandler(chatSessionService, s.logger)
-	getChatSessionHandler := chatSessions2.NewGetChatSessionHandler(chatSessionService, s.logger)
-	sendMessageHandler := chatSessions2.NewSendMessageHandler(messageService, s.logger)
-	submitFeedbackHandler := chatSessions2.NewSubmitFeedbackHandler(messageService, s.logger)
+	createChatSessionHandler := chatSessionHandlers.NewCreateUserChatSessionHandler(chatSessionService, s.logger)
+	getChatSessionHandler := chatSessionHandlers.NewGetChatSessionHandler(chatSessionService, s.logger)
+	sendMessageHandler := chatSessionHandlers.NewSendMessageHandler(messageService, s.logger)
+	submitFeedbackHandler := chatSessionHandlers.NewSubmitFeedbackHandler(messageService, s.logger)
 
 	protected.HandleFunc("/users/{user_id}/chat-sessions", createChatSessionHandler.CreateUserChatSessionController).Methods("POST")
 	protected.HandleFunc("/users/{user_id}/chat-sessions", getChatSessionHandler.GetUserChatSessionsController).Methods("GET")
@@ -68,4 +78,6 @@ func (s *Server) initializeRoutes() {
 
 	protected.HandleFunc("/chat-sessions/{session_id}", getChatSessionHandler.GetChatSessionController).Methods("GET")
 
+	protected.HandleFunc("/ws/add", wsAddHandler.AddController)
+	protected.HandleFunc("/ws/subtract", wsSubtractHandler.SubtractController)
 }
