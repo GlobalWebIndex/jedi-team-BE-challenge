@@ -69,6 +69,7 @@ func (s *Server) initializeRoutes() {
 	createChatSessionHandler := chatSessionHandlers.NewCreateUserChatSessionHandler(chatSessionService, s.logger)
 	getChatSessionHandler := chatSessionHandlers.NewGetChatSessionHandler(chatSessionService, s.logger)
 	sendMessageHandler := chatSessionHandlers.NewSendMessageHandler(messageService, s.logger)
+	wsSendMessageHandler := chatSessionHandlers.NewWsSendMessageHandler(messageService, s.logger, &upgrader)
 	submitFeedbackHandler := chatSessionHandlers.NewSubmitFeedbackHandler(messageService, s.logger)
 
 	protected.HandleFunc("/users/{user_id}/chat-sessions", createChatSessionHandler.CreateUserChatSessionController).Methods("POST")
@@ -80,4 +81,5 @@ func (s *Server) initializeRoutes() {
 
 	protected.HandleFunc("/ws/add", wsAddHandler.AddController)
 	protected.HandleFunc("/ws/subtract", wsSubtractHandler.SubtractController)
+	protected.HandleFunc("/ws/users/{user_id}/chat-sessions/{session_id}/messages", wsSendMessageHandler.WsSendMessageController)
 }

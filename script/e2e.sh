@@ -59,6 +59,28 @@ system_message_id_3=$(echo "$response_message_3" | jq -r '.systemMessage.id')
 echo "Three messages were sent in the same discussion and title was generated"
 echo "----------------------------------"
 
+# Step 5.5: Send three messages with websockets
+
+messages=(
+  "what do you know about australian millennial parents"
+  "do they use social media"
+  "what social media do they use the most"
+)
+
+echo "Connecting to WebSocket..."
+for msg in "${messages[@]}"; do
+  echo "Sending message: $msg"
+
+  # Send JSON and read one response line
+  response=$(echo "{\"content\":\"$msg\"}" |
+    websocat --header="Authorization: Bearer $token" --text "ws://localhost:8080/ws/users/$USER_ID/chat-sessions/$CHAT_SESSION_ID/messages")
+
+  echo "Received response:"
+  echo "$response"
+done
+
+echo "----------------------------------"
+
 # Step 6: Fetch and display the whole chat session
 echo "Fetching the entire chat session $CHAT_SESSION_ID..."
 chat_session_response=$(curl -s --location "$BASE_URL/chat-sessions/$CHAT_SESSION_ID" \
@@ -90,7 +112,6 @@ response_message_4=$(curl -s --location "$BASE_URL/users/$USER_ID/chat-sessions/
   --header "Content-Type: application/json" \
   --header "Authorization: Bearer $token" \
   --data "{\"content\":\"$message_content_4\"}")
-
 
 echo "Message 4 that's supposed to be not answered sent to chat session $CHAT_SESSION_ID:"
 echo "$response_message_4"
