@@ -13,11 +13,13 @@ import (
 	"github.com/loukaspe/jedi-team-challenge/pkg/logger"
 	"github.com/openai/openai-go"
 	"strings"
+	"time"
 )
 
 type MessageServiceInterface interface {
 	CreateMessage(context.Context, uuid.UUID, *domain.Message) (uuid.UUID, error)
 	GetAnswerForMessage(context.Context, uuid.UUID) (*domain.Message, error)
+	StreamAnswerForMessage(context.Context, uuid.UUID) (<-chan string, <-chan error)
 	UpdateMessageFeedback(ctx context.Context, message *domain.Message, userID uuid.UUID) error
 }
 
@@ -144,6 +146,37 @@ func (s *MessageService) GetAnswerForMessage(ctx context.Context, initialMessage
 	replyMessage.ID = insertedMessageID
 
 	return replyMessage, nil
+}
+
+func (s *MessageService) StreamAnswerForMessage(ctx context.Context, initialMessageID uuid.UUID) (<-chan string, <-chan error) {
+	tokenChan := make(chan string)
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer close(tokenChan)
+		defer close(errChan)
+
+		response, err := s.GetAnswerForMessage(ctx, initialMessageID)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		// split into tokens (simulate streaming)
+		tokens := strings.Split(response.String(), " ")
+
+		for _, token := range tokens {
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			case tokenChan <- token:
+				time.Sleep(100 * time.Millisecond) // simulate generation delay
+			}
+		}
+	}()
+
+	return tokenChan, errChan
 }
 
 func (s *MessageService) generateAnswerFromOpenAI(ctx context.Context, text []string, initialMessage string, previousMessages []*domain.Message) (string, error) {
