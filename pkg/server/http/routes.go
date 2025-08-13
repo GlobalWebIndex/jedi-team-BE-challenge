@@ -1,6 +1,8 @@
 package http
 
 import (
+	gorillaHandlers "github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/loukaspe/jedi-team-challenge/internal/core/services"
 	httpHandlers "github.com/loukaspe/jedi-team-challenge/internal/handlers/http"
@@ -57,6 +59,7 @@ func (s *Server) initializeRoutes() {
 	jwtHandler := httpHandlers.NewJwtClaimsHandler(jwtService, s.logger)
 
 	s.router.HandleFunc("/token", jwtHandler.JwtTokenController).Methods(http.MethodPost)
+	s.router.HandleFunc("/token", optionsHandlerForCors).Methods(http.MethodOptions)
 
 	protected := s.router.PathPrefix("/").Subrouter()
 	protected.Use(jwtMiddleware.AuthenticationMW)
@@ -74,6 +77,7 @@ func (s *Server) initializeRoutes() {
 	submitFeedbackHandler := chatSessionHandlers.NewSubmitFeedbackHandler(messageService, s.logger)
 
 	protected.HandleFunc("/users/{user_id}/chat-sessions", createChatSessionHandler.CreateUserChatSessionController).Methods("POST")
+	protected.HandleFunc("/users/{user_id}/chat-sessions", optionsHandlerForCors).Methods(http.MethodOptions)
 	protected.HandleFunc("/users/{user_id}/chat-sessions", getChatSessionHandler.GetUserChatSessionsController).Methods("GET")
 	protected.HandleFunc("/users/{user_id}/chat-sessions/{session_id}/messages", sendMessageHandler.SendMessageController).Methods("POST")
 	protected.HandleFunc("/users/{user_id}/chat-sessions/{session_id}/messages/{message_id}/feedback", submitFeedbackHandler.SubmitFeedbackController).Methods("POST")
@@ -84,4 +88,23 @@ func (s *Server) initializeRoutes() {
 	protected.HandleFunc("/ws/subtract", wsSubtractHandler.SubtractController)
 	protected.HandleFunc("/ws/users/{user_id}/chat-sessions/{session_id}/messages", wsSendMessageHandler.WsSendMessageController)
 	protected.HandleFunc("/sse/users/{user_id}/chat-sessions/{session_id}/messages", sseSendMessageHandler.SseSendMessageController)
+	protected.HandleFunc("/sse/users/{user_id}/chat-sessions/{session_id}/messages", optionsHandlerForCors).Methods(http.MethodOptions)
+
+	s.router.Use(mux.CORSMethodMiddleware(s.router))
+
+	corsOrigins := gorillaHandlers.AllowedOrigins([]string{"http://localhost:3000"})
+	corsMethods := gorillaHandlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	corsHeaders := gorillaHandlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
+	corsExposedHeaders := gorillaHandlers.ExposedHeaders([]string{"Content-Type", "Authorization"})
+	corsCredentials := gorillaHandlers.AllowCredentials()
+	corsHandler := gorillaHandlers.CORS(corsOrigins, corsMethods, corsHeaders, corsExposedHeaders, corsCredentials)
+	s.router.Use(corsHandler)
+}
+
+func optionsHandlerForCors(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+	w.Header().Set("Access-Control-Max-Age", "86400")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
