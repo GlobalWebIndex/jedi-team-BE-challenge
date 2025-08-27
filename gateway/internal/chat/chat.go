@@ -1,0 +1,122 @@
+package chat
+
+import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"errors"
+	"fmt"
+	"time"
+
+	"gateway/config"
+	"gateway/internal/models"
+	"gateway/internal/repositories"
+)
+
+const NotExistingChat = -1;
+
+func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int) {
+	cfg := config.LoadConfig()
+
+	var chatMessage models.ChatMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&chatMessage); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	// RAG -> leave for now
+
+	systemPrompt := models.OllamaMessage{
+		Role:			"system",
+		Content:		"YOU ARE A ROBOT. REPLY LIKE YODA.",
+	}
+
+	ollamaMessages := []models.OllamaMessage{systemPrompt}
+	
+	var title string
+	var err error
+
+	if chatId == NotExistingChat {
+		// If chat doesn't exist - auto generate a title
+		title, err = repositories.GenerateTitle(chatMessage.Message)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Encountered error while generating title: %v", err), http.StatusInternalServerError)
+			return
+		}
+		// Create a new chat entry
+		chatId, err = repositories.CreateChat(
+			models.DBChats{
+				UserId: 	chatMessage.UserId,
+				Title: 		title,
+				CreatedAt: 	time.Now(),
+		}, db)
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Encountered error while creating chat: %v", err), http.StatusInternalServerError)
+			return
+		}
+		
+	} else {
+
+		// Retrieve chat from db if exists and append to ollamaMessages for context
+		dbChats, chatTitle, err := repositories.GetChats(chatId, db)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "Chat not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, fmt.Sprintf("Encountered error while retrieving chat: %v", err), http.StatusInternalServerError)
+			return
+		}
+		title = chatTitle
+
+		// Convert from DB Model -> Ollama Model
+		
+		ollamaMessages = append(ollamaMessages, repositories.ChatMsgDbOllama(dbChats)...)
+	}
+
+	ollamaRequest := models.OllamaChatRequest{
+		Model:		cfg.Ollama.Model,
+		Messages:	ollamaMessages,
+		Stream:		false,
+	}
+
+	ollamaResponse, err := repositories.SendOllamaRequest(cfg.Ollama.Url, ollamaRequest)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Received unexpected error while querying model: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Craft new db chat message
+	dbChatMessage := models.DBChatMessage{
+		ChatId: 	chatId, //generated
+		Message:	chatMessage.Message,
+		Response:	ollamaResponse.Message.Content,
+		CreatedAt:	time.Now(),
+	}
+	// Add new chat to DB
+	if err := repositories.AddChatMessage(dbChatMessage, db); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save chat message: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	chatMessageResponse := models.ChatMessageResponse{
+		ChatId: 	chatId,
+		Title: 		title,
+		Message: 	chatMessage.Message,
+		Response: 	ollamaResponse.Message.Content,
+		CreatedAt: 	time.Now(),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(chatMessageResponse)
+}
+
+// func GetUsersChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, userId string) {
+
+// }
+
+// func GetChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId string) {
+	
+// }
+
+

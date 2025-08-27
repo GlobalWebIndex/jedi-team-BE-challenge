@@ -1,0 +1,45 @@
+services:
+  ollama:
+    build:
+      context: ./ollama
+      dockerfile: ../dockerfiles/ollama.dockerfile
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    expose:
+      - "5432"
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: ../dockerfiles/gateway.dockerfile
+    container_name: gateway
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=gemma:2b
+    ports:
+      - "8080:8080"
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+volumes:
+  ollama-data:
+  pgdata:
