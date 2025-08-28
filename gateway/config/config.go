@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
 type DBConfig struct {
@@ -16,6 +17,7 @@ type DBConfig struct {
 type OllamaConfig struct {
 	Model	string
 	Url		string
+	Stream	bool
 }
 
 type ServerConfig struct {
@@ -43,16 +45,27 @@ func LoadConfig() *Config {
 		Ollama: OllamaConfig{
 			Model:		getEnv("OLLAMA_MODEL", "gemma:2b"),
 			Url:		getEnv("OLLAMA_URL", "http://ollama:11434/api/chat"),
+			Stream:		getEnv("OLLAMA_STREAM", false),
 		},
 		Server: ServerConfig{
 			Address: 	getEnv("SERVER_ADDRESS", ":8080"),
 		},
 	}
 }
-
-func getEnv(key, fallback string) string {
+func getEnv[T any](key string, fallback T) T {
 	if value, exists := os.LookupEnv(key); exists {
-		return value
+		switch any(fallback).(type) {
+		case string:
+			return any(value).(T)
+		case int:
+			if v, err := strconv.Atoi(value); err == nil {
+				return any(v).(T)
+			}
+		case bool:
+			if v, err := strconv.ParseBool(value); err == nil {
+				return any(v).(T)
+			}
+		}
 	}
 	return fallback
 }

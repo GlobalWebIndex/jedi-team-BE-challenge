@@ -149,6 +149,36 @@ func GetChats(chatId int, db *sql.DB) ([]models.DBChatMessage, string, error) {
 	return messages, chatTitle, nil
 }
 
+func GetUserChats(userId int, db *sql.DB) ([]models.DBChats, error) {
+	query := `
+		SELECT id, user_id, title, created_at
+		FROM chats
+		WHERE user_id = $1
+		ORDER BY created_at ASC
+	`
+
+	rows, err := db.Query(query, userId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query chats: %w", err)
+	}
+	defer rows.Close()
+
+	var chats []models.DBChats
+	for rows.Next() {
+		var chat models.DBChats
+		err := rows.Scan(
+			&chat.Id,
+			&chat.UserId,
+			&chat.Title,
+			&chat.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan chats: %w", err)
+		}
+		chats = append(chats, chat)
+	}
+	return chats, nil
+}
 
 func ChatMsgDbOllama(dbChatMsgs []models.DBChatMessage) []models.OllamaMessage {
     var result []models.OllamaMessage
@@ -164,4 +194,38 @@ func ChatMsgDbOllama(dbChatMsgs []models.DBChatMessage) []models.OllamaMessage {
         result = append(result, ollamaMsg, ollamaResponse)
     }
     return result
+}
+func ConvertDBChatsToSummaryResponse(dbChats []models.DBChats) []models.ChatSummaryItem {
+    summaries := make([]models.ChatSummaryItem, len(dbChats))
+
+    for i, chat := range dbChats {
+        summaries[i] = models.ChatSummaryItem{
+            ChatId:      chat.Id,
+            UserId:      chat.UserId,
+            Title:       chat.Title,
+            LastUpdated: chat.CreatedAt,
+        }
+    }
+
+    return summaries
+}
+
+func ConvertDBChatToHistoryResponse(dbChats []models.DBChatMessage, chatId int, chatTitle string) models.ChatHistoryResponse {
+	msgHistory := make([]models.ChatHistoryMessage, len(dbChats))
+
+    for i, chat := range dbChats {
+        msgHistory[i] = models.ChatHistoryMessage{
+            Message:     	chat.Message,
+            Response:      	chat.Response,
+            CreatedAt:      chat.CreatedAt,
+        }
+    }
+
+	historyResponse := models.ChatHistoryResponse{
+		ChatId:		chatId,
+		Title:		chatTitle,
+		Messages:	msgHistory,
+	}
+
+	return historyResponse
 }

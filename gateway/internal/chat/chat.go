@@ -55,9 +55,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 			http.Error(w, fmt.Sprintf("Encountered error while creating chat: %v", err), http.StatusInternalServerError)
 			return
 		}
-		
 	} else {
-
 		// Retrieve chat from db if exists and append to ollamaMessages for context
 		dbChats, chatTitle, err := repositories.GetChats(chatId, db)
 		if err != nil {
@@ -78,7 +76,6 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 	ollamaRequest := models.OllamaChatRequest{
 		Model:		cfg.Ollama.Model,
 		Messages:	ollamaMessages,
-		Stream:		false,
 	}
 
 	ollamaResponse, err := repositories.SendOllamaRequest(cfg.Ollama.Url, ollamaRequest)
@@ -111,12 +108,38 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 	json.NewEncoder(w).Encode(chatMessageResponse)
 }
 
-// func GetUsersChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, userId string) {
+func GetUsersChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, userId int) {
+	dbChats, err := repositories.GetUserChats(userId, db)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Chats not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf("Encountered error while retrieving chats: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-// }
+	response := repositories.ConvertDBChatsToSummaryResponse(dbChats)
 
-// func GetChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId string) {
-	
-// }
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func GetChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int) {
+	dbChatMessages, chatTitle, err := repositories.GetChats(chatId, db)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Chat not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf("Encountered error while retrieving chat messages: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	historyResponse := repositories.ConvertDBChatToHistoryResponse(dbChatMessages, chatId, chatTitle)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(historyResponse)
+}
 
 

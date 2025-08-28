@@ -28,11 +28,14 @@ func GenerateTitle(content string) (string, error) {
 			Content: content,
 		},
 	}
-
+	
+	maxTokens := 7 //4-5 words for the title max
 	ollamaRequest := models.OllamaChatRequest{
 		Model:		cfg.Ollama.Model,
 		Messages:	ollamaMessages,
-		Stream:		false,
+		Options: &models.OllamaOptions{
+			NumPredict: &maxTokens,
+		},
 	}
 
 	ollamaResponse, err := SendOllamaRequest(cfg.Ollama.Url, ollamaRequest)
@@ -43,7 +46,10 @@ func GenerateTitle(content string) (string, error) {
 	return ollamaResponse.Message.Content, nil
 }
 
-func SendOllamaRequest(url string, requestBody interface{}) (*models.OllamaResponse, error) {
+func SendOllamaRequest(url string, requestBody models.OllamaChatRequest) (*models.OllamaResponse, error) {
+	cfg := config.LoadConfig()
+	requestBody.Stream = cfg.Ollama.Stream
+
 	payload, err := json.Marshal(requestBody)
     if err != nil {
         return nil, fmt.Errorf("failed to marshal request body: %w", err)
@@ -72,10 +78,6 @@ func SendOllamaRequest(url string, requestBody interface{}) (*models.OllamaRespo
     if err := json.Unmarshal(body, &ollamaResp); err != nil {
         return nil, fmt.Errorf("failed to unmarshal Ollama response: %w", err)
     }
-
-	go func() {
-		fmt.Printf("HEYYYY OLLAMA RESPONSE IS: %s \n \n MODEL IS: %s", ollamaResp.Message.Content, ollamaResp.Model)
-	}()
 
     return &ollamaResp, nil
 }
