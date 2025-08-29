@@ -15,13 +15,8 @@ type DatabaseCallback func() (*sql.DB, error)
 
 const NotExistingChat = -1
 
-func SetupServer(dbCallback DatabaseCallback) (*http.Server, error) {
+func SetupServer(db *sql.DB) (*http.Server, error) {
 	cfg := config.LoadConfig()
-
-	db, err := dbCallback()
-	if err != nil {
-		return nil, err
-	}
 
 	r := chi.NewRouter()
 

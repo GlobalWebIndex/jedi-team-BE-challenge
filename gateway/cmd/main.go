@@ -9,7 +9,12 @@ import (
 )
 
 func main() {
-	srv, err := app.SetupServer(db.InitDatabase)
+	db, err := db.InitDatabase()
+	if err != nil {
+		log.Fatalf("failed to connect to db: %v", err)
+	}
+
+	srv, err := app.SetupServer(db)
 	if err != nil {
 		log.Fatalf("failed to setup server: %v", err)
 	}
