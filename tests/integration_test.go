@@ -63,6 +63,9 @@ func TestChatFlow(t *testing.T) {
 	if startResp.Response == "" {
 		t.Fatal("Expected a response from Ollama")
 	}
+	if startResp.Title == "" {
+		t.Fatal("Expected a title from Ollama")
+	}
 
 	t.Logf("Started chat: %+v", startResp)
 
