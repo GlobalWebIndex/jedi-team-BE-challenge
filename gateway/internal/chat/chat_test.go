@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"net/http"
+	"bytes"
 	"time"
 	"net/http/httptest"
 	"testing"
@@ -24,6 +25,103 @@ func initMockDb() (*sql.DB, sqlmock.Sqlmock, error) {
 	}
 	return db, mock, nil
 }
+
+func TestChat(t *testing.T) {
+	path := "/chat"
+	chatId := 123
+	t.Run("POST__/chat__Missing_User_Id", func(t *testing.T) {
+		expectedStatus := http.StatusBadRequest
+		expectedResponse := "Missing required fields"
+		body, err := json.Marshal(models.ChatMessageRequest{
+			Message: "Some Message",
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal credentials: %v", err)
+		}
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", path, bytes.NewBuffer(body))
+
+		ChatHandler(rr, req, &sql.DB{}, NotExistingChat)
+
+		if rr.Code != expectedStatus {
+			t.Errorf("Expected status %d, got: %d", expectedStatus, rr.Code)
+		}
+
+		if strings.TrimSpace(rr.Body.String()) != expectedResponse {
+			t.Errorf("Expected response %s, got: %s", expectedResponse, strings.TrimSpace(rr.Body.String()))
+		}
+	})
+	t.Run("POST__/chat__Missing_Message", func(t *testing.T) {
+		expectedStatus := http.StatusBadRequest
+		expectedResponse := "Missing required fields"
+		body, err := json.Marshal(models.ChatMessageRequest{
+			UserId: 123,
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal credentials: %v", err)
+		}
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", path, bytes.NewBuffer(body))
+
+		ChatHandler(rr, req, &sql.DB{}, NotExistingChat)
+
+		if rr.Code != expectedStatus {
+			t.Errorf("Expected status %d, got: %d", expectedStatus, rr.Code)
+		}
+
+		if strings.TrimSpace(rr.Body.String()) != expectedResponse {
+			t.Errorf("Expected response %s, got: %s", expectedResponse, strings.TrimSpace(rr.Body.String()))
+		}
+	})
+	// t.Run("POST__/chat__Success", func(t *testing.T) {})
+	t.Run("POST__/chat/:chatId__Missing_Non_Existent_Chat_Id", func(t *testing.T) {
+		expectedResponse := "Chat not found"
+		expectedStatusCode := http.StatusNotFound
+
+		db, mock, err := initMockDb()
+		if err != nil {
+			t.Fatalf("Received unexpected error when initializing mock db: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT title FROM chats WHERE id = $1`)).
+		WithArgs(chatId).
+		WillReturnError(sql.ErrNoRows)
+
+		mock.ExpectQuery(regexp.QuoteMeta(`
+			SELECT chat_id, message, response, created_at 
+			FROM chat_messages 
+			WHERE chat_id = $1 
+			ORDER BY created_at ASC
+		`)).
+		WithArgs(chatId).
+		WillReturnError(sql.ErrNoRows)
+
+		body, err := json.Marshal(models.ChatMessageRequest{
+			UserId: 123,
+			Message: "Some Message",
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal credentials: %v", err)
+		}
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("%s/%d", path, chatId), bytes.NewBuffer(body))
+
+		ChatHandler(rr, req, db, chatId)
+
+		if rr.Code != expectedStatusCode {
+			t.Errorf("Expected status %d, got: %d", expectedStatusCode, rr.Code)
+		}
+
+		if strings.TrimSpace(rr.Body.String()) != expectedResponse {
+			t.Errorf("Expected response %s, got: %s", expectedResponse, strings.TrimSpace(rr.Body.String()))
+		}
+	})
+	// t.Run("POST__/chat/:chatId__Invalid_Ollama_Response", func(t *testing.T) {})
+	// t.Run("POST__/chat/:chatId__Ollama_Delay_40_secs", func(t *testing.T) {})
+	// t.Run("POST__/chat/:chatId__Success", func(t *testing.T) {})
+}
+
 func TestGetChat(t *testing.T) {
 	path := "/chat"
 	chatId := 123

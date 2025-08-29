@@ -3,9 +3,9 @@ package chat
 import (
 	"database/sql"
 	"encoding/json"
-	"net/http"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"gateway/config"
@@ -13,7 +13,7 @@ import (
 	"gateway/internal/repositories"
 )
 
-const NotExistingChat = -1;
+const NotExistingChat = -1
 
 func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int) {
 	cfg := config.LoadConfig()
@@ -23,16 +23,19 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
-
+	if chatMessage.UserId == 0 || chatMessage.Message == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
 	// RAG -> leave for now
 
 	systemPrompt := models.OllamaMessage{
-		Role:			"system",
-		Content:		"YOU ARE A ROBOT. REPLY LIKE YODA.",
+		Role:    "system",
+		Content: "YOU ARE A ROBOT. REPLY LIKE YODA.",
 	}
 
 	ollamaMessages := []models.OllamaMessage{systemPrompt}
-	
+
 	var title string
 	var err error
 
@@ -46,10 +49,10 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		// Create a new chat entry
 		chatId, err = repositories.CreateChat(
 			models.DBChats{
-				UserId: 	chatMessage.UserId,
-				Title: 		title,
-				CreatedAt: 	time.Now(),
-		}, db)
+				UserId:    chatMessage.UserId,
+				Title:     title,
+				CreatedAt: time.Now(),
+			}, db)
 
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Encountered error while creating chat: %v", err), http.StatusInternalServerError)
@@ -69,13 +72,13 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		title = chatTitle
 
 		// Convert from DB Model -> Ollama Model
-		
+
 		ollamaMessages = append(ollamaMessages, repositories.ChatMsgDbOllama(dbChats)...)
 	}
 
 	ollamaRequest := models.OllamaChatRequest{
-		Model:		cfg.Ollama.Model,
-		Messages:	ollamaMessages,
+		Model:    cfg.Ollama.Model,
+		Messages: ollamaMessages,
 	}
 
 	ollamaResponse, err := repositories.SendOllamaRequest(cfg.Ollama.Url, ollamaRequest)
@@ -86,10 +89,10 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 
 	// Craft new db chat message
 	dbChatMessage := models.DBChatMessage{
-		ChatId: 	chatId, //generated
-		Message:	chatMessage.Message,
-		Response:	ollamaResponse.Message.Content,
-		CreatedAt:	time.Now(),
+		ChatId:    chatId, //generated
+		Message:   chatMessage.Message,
+		Response:  ollamaResponse.Message.Content,
+		CreatedAt: time.Now(),
 	}
 	// Add new chat to DB
 	if err := repositories.AddChatMessage(dbChatMessage, db); err != nil {
@@ -98,11 +101,11 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 	}
 
 	chatMessageResponse := models.ChatMessageResponse{
-		ChatId: 	chatId,
-		Title: 		title,
-		Message: 	chatMessage.Message,
-		Response: 	ollamaResponse.Message.Content,
-		CreatedAt: 	time.Now(),
+		ChatId:    chatId,
+		Title:     title,
+		Message:   chatMessage.Message,
+		Response:  ollamaResponse.Message.Content,
+		CreatedAt: time.Now(),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(chatMessageResponse)
@@ -141,5 +144,3 @@ func GetChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId i
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(historyResponse)
 }
-
-
