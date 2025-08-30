@@ -27,17 +27,24 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
-	// RAG -> leave for now
 
 	systemPrompt := models.OllamaMessage{
 		Role:    "system",
-		Content: "YOU ARE A ROBOT. REPLY LIKE YODA.",
+		Content: "You are a question-answering assistant. You must answer the user's question ONLY using the information provided in the retrieved documents below. Do not use any outside knowledge, assumptions, or prior training data. If the answer is not explicitly contained in the provided documents, respond exactly with: \"I don’t have relevant information in the retrieved context to answer that question.\". However, if the question is highly relevant but not exactly matching one of the provided documents, answer based on what is relevant but clarify.",
 	}
 
 	ollamaMessages := []models.OllamaMessage{systemPrompt}
 
+	prompt, err := repositories.RetrieveAndAugmentUserPrompt(chatMessage.Message)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("ncountered issue while retrieving relavant documents: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	ollamaMessages = append(ollamaMessages, prompt...)
+
+
 	var title string
-	var err error
 
 	if chatId == NotExistingChat {
 		// If chat doesn't exist - auto generate a title
