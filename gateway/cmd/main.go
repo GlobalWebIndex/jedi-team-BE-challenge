@@ -6,15 +6,25 @@ import (
 
 	"gateway/internal/app"
 	"gateway/internal/db"
+	"gateway/internal/repositories"
 )
 
 func main() {
-	db, err := db.InitDatabase()
+	db, err := db.StartConn()
 	if err != nil {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
+	chatRepo := repositories.NewChatRepository(db)
+	ragRepo := repositories.NewRagRepositoryHTTP()
+	ollamaRepo := repositories.NewOllamaRepository()
 
-	srv, err := app.SetupServer(db)
+	deps := app.ServerDependencies{
+		ChatRepo:   chatRepo,
+		RagRepo:    ragRepo,
+		OllamaRepo: ollamaRepo,
+	}
+
+	srv, err := app.SetupServer(deps)
 	if err != nil {
 		log.Fatalf("failed to setup server: %v", err)
 	}

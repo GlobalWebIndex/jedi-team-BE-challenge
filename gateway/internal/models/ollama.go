@@ -8,16 +8,16 @@ type OllamaOptions struct {
 	NumPredict *int `json:"num_predict,omitempty"`
 }
 
-type OllamaChatRequest struct {
-	Model    string          	`json:"model"`
-	Messages []OllamaMessage 	`json:"messages"`
-	Stream   bool            	`json:"stream"`
-	Options  *OllamaOptions  	`json:"options,omitempty"`
+type OllamaRequest struct {
+	Model    string          `json:"model"`
+	Messages []OllamaMessage `json:"messages"`
+	Stream   bool            `json:"stream"`
+	Options  *OllamaOptions  `json:"options,omitempty"`
 }
 
 type OllamaResponse struct {
-	Model     string      	`json:"model"`
-	CreatedAt string       	`json:"created_at"`
-	Message   OllamaMessage	`json:"message"`
-	Done      bool         	`json:"done"`
+	Model     string        `json:"model"`
+	CreatedAt string        `json:"created_at"`
+	Message   OllamaMessage `json:"message"`
+	Done      bool          `json:"done"`
 }

@@ -7,6 +7,7 @@ import (
 
 	"gateway/config"
 	"gateway/internal/chat"
+	"gateway/internal/repositories"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -15,7 +16,13 @@ type DatabaseCallback func() (*sql.DB, error)
 
 const NotExistingChat = -1
 
-func SetupServer(db *sql.DB) (*http.Server, error) {
+type ServerDependencies struct {
+	ChatRepo   repositories.ChatRepository
+	RagRepo    repositories.RagRepository
+	OllamaRepo repositories.OllamaRepository
+}
+
+func SetupServer(deps ServerDependencies) (*http.Server, error) {
 	cfg := config.LoadConfig()
 
 	r := chi.NewRouter()
@@ -24,7 +31,7 @@ func SetupServer(db *sql.DB) (*http.Server, error) {
 	// Request: `ChatMessageRequest` 
 	// Response: `ChatMessageResponse` 
 	r.Post("/chat", func(w http.ResponseWriter, r *http.Request) {
-		chat.ChatHandler(w, r, db, NotExistingChat)
+		chat.ChatHandler(w, r, deps.ChatRepo, deps.RagRepo, deps.OllamaRepo, NotExistingChat)
 	})
 
 	// POST `/chat/:chat_id`: Continues a conversation and prompts chatbot
@@ -37,7 +44,7 @@ func SetupServer(db *sql.DB) (*http.Server, error) {
 			http.Error(w, "Invalid chat ID", http.StatusBadRequest)
 			return
 		}
-		chat.ChatHandler(w, r, db, chatID)
+		chat.ChatHandler(w, r, deps.ChatRepo, deps.RagRepo, deps.OllamaRepo, chatID)
 	})
 
 	// GET `/chat/users/:user_id`: Retrieves all conversations of a user
@@ -49,7 +56,7 @@ func SetupServer(db *sql.DB) (*http.Server, error) {
 			http.Error(w, "Invalid chat ID", http.StatusBadRequest)
 			return
 		}
-		chat.GetUsersChatHandler(w, r, db, userId)
+		chat.GetUsersChatHandler(w, r, deps.ChatRepo, userId)
 	})
 
 
@@ -62,7 +69,7 @@ func SetupServer(db *sql.DB) (*http.Server, error) {
 			http.Error(w, "Invalid chat ID", http.StatusBadRequest)
 			return
 		}
-		chat.GetChatHandler(w, r, db, chatID)
+		chat.GetChatHandler(w, r, deps.ChatRepo, chatID)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {})

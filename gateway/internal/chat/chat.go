@@ -15,7 +15,7 @@ import (
 
 const NotExistingChat = -1
 
-func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int) {
+func ChatHandler(w http.ResponseWriter, r *http.Request, chatRepo repositories.ChatRepository, ragRepo repositories.RagRepository, ollamaRepo repositories.OllamaRepository, chatId int) {
 	cfg := config.LoadConfig()
 
 	var chatMessage models.ChatMessageRequest
@@ -35,7 +35,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 
 	ollamaMessages := []models.OllamaMessage{systemPrompt}
 
-	prompt, err := repositories.RetrieveAndAugmentUserPrompt(chatMessage.Message)
+	prompt, err := ragRepo.RetrieveAndAugmentUserPrompt(chatMessage.Message)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("encountered issue while retrieving relavant documents: %v", err), http.StatusInternalServerError)
 		return
@@ -47,18 +47,18 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 
 	if chatId == NotExistingChat {
 		// If chat doesn't exist - auto generate a title
-		title, err = repositories.GenerateTitle(chatMessage.Message)
+		title, err = ollamaRepo.GenerateTitle(chatMessage.Message)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Encountered error while generating title: %v", err), http.StatusInternalServerError)
 			return
 		}
 		// Create a new chat entry
-		chatId, err = repositories.CreateChat(
+		chatId, err = chatRepo.CreateChat(
 			models.DBChats{
 				UserId:    chatMessage.UserId,
 				Title:     title,
 				CreatedAt: time.Now(),
-			}, db)
+			})
 
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Encountered error while creating chat: %v", err), http.StatusInternalServerError)
@@ -66,7 +66,8 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		}
 	} else {
 		// Retrieve chat from db if exists and append to ollamaMessages for context
-		dbChats, chatTitle, err := repositories.GetChats(chatId, db)
+		dbChats, chatTitle, err := chatRepo.GetChats(chatId)
+		fmt.Errorf("ERROR IS: %w", err)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "Chat not found", http.StatusNotFound)
@@ -82,12 +83,12 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		ollamaMessages = append(ollamaMessages, repositories.ChatMsgDbOllama(dbChats)...)
 	}
 
-	ollamaRequest := models.OllamaChatRequest{
+	ollamaRequest := models.OllamaRequest{
 		Model:    cfg.Ollama.Model,
 		Messages: ollamaMessages,
 	}
 
-	ollamaResponse, err := repositories.SendOllamaRequest(cfg.Ollama.Url, ollamaRequest)
+	ollamaResponse, err := ollamaRepo.SendOllamaRequest(cfg.Ollama.Url, ollamaRequest)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Received unexpected error while querying model: %v", err), http.StatusInternalServerError)
 		return
@@ -101,7 +102,7 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 		CreatedAt: time.Now(),
 	}
 	// Add new chat to DB
-	if err := repositories.AddChatMessage(dbChatMessage, db); err != nil {
+	if err := chatRepo.AddChatMessage(dbChatMessage); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to save chat message: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -117,8 +118,8 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 	json.NewEncoder(w).Encode(chatMessageResponse)
 }
 
-func GetUsersChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, userId int) {
-	dbChats, err := repositories.GetUserChats(userId, db)
+func GetUsersChatHandler(w http.ResponseWriter, r *http.Request, repo repositories.ChatRepository, userId int) {
+	dbChats, err := repo.GetUserChats(userId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "Chats not found", http.StatusNotFound)
@@ -134,8 +135,8 @@ func GetUsersChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, use
 	json.NewEncoder(w).Encode(response)
 }
 
-func GetChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int) {
-	dbChatMessages, chatTitle, err := repositories.GetChats(chatId, db)
+func GetChatHandler(w http.ResponseWriter, r *http.Request, repo repositories.ChatRepository, chatId int) {
+	dbChatMessages, chatTitle, err := repo.GetChats(chatId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "Chat not found", http.StatusNotFound)

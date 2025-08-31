@@ -1,13 +1,22 @@
 package repositories
 
 import (
-	"fmt"
 	"database/sql"
-
+	"fmt"
 	"gateway/internal/models"
 )
 
-func InitializeChatsTable(db *sql.DB) error {
+type chatRepository struct {
+	db *sql.DB
+}
+
+func NewChatRepository(db *sql.DB) ChatRepository {
+	chatRepo := &chatRepository{db: db}
+	chatRepo.InitializeTables()
+	return chatRepo
+}
+
+func (r *chatRepository) InitializeChatsTable() error {
 	createTableQuery := `
 		CREATE TABLE IF NOT EXISTS chats (
 			id SERIAL PRIMARY KEY,
@@ -16,24 +25,18 @@ func InitializeChatsTable(db *sql.DB) error {
 			created_at TIMESTAMPTZ NOT NULL
 		)
 	`
-	_, err := db.Exec(createTableQuery)
-	if err != nil {
+	if _, err := r.db.Exec(createTableQuery); err != nil {
 		return fmt.Errorf("error creating chats table: %w", err)
 	}
 
-	createUserIndexQuery := `
-		CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats (user_id);
-	`
-	_, err = db.Exec(createUserIndexQuery)
-	if err != nil {
+	createUserIndexQuery := `CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats (user_id)`
+	if _, err := r.db.Exec(createUserIndexQuery); err != nil {
 		return fmt.Errorf("error creating chats user_id index: %w", err)
 	}
-
 	return nil
 }
 
-
-func InitializeChatMessagesTable(db *sql.DB) error {
+func (r *chatRepository) InitializeChatMessagesTable() error {
 	createTableQuery := `
 		CREATE TABLE IF NOT EXISTS chat_messages (
 			id SERIAL PRIMARY KEY,
@@ -43,121 +46,82 @@ func InitializeChatMessagesTable(db *sql.DB) error {
 			created_at TIMESTAMPTZ NOT NULL
 		)
 	`
-	_, err := db.Exec(createTableQuery)
-	if err != nil {
+	if _, err := r.db.Exec(createTableQuery); err != nil {
 		return fmt.Errorf("error creating chat_messages table: %w", err)
 	}
 
-	createChatIdIndexQuery := `
-		CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id);
-	`
-	_, err = db.Exec(createChatIdIndexQuery)
-	if err != nil {
+	createChatIdIndexQuery := `CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id)`
+	if _, err := r.db.Exec(createChatIdIndexQuery); err != nil {
 		return fmt.Errorf("error creating chat_messages chat_id index: %w", err)
 	}
-
 	return nil
 }
 
-
-func CreateChat(chat models.DBChats, db *sql.DB) (int, error) {
+func (r *chatRepository) CreateChat(chat models.DBChats) (int, error) {
 	query := `
 		INSERT INTO chats (user_id, title, created_at)
 		VALUES ($1, $2, $3)
 		RETURNING id
 	`
-
 	var id int
-	err := db.QueryRow(query, chat.UserId, chat.Title, chat.CreatedAt).Scan(&id)
+	err := r.db.QueryRow(query, chat.UserId, chat.Title, chat.CreatedAt).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("error inserting chat: %w", err)
 	}
-
 	return id, nil
 }
 
-
-
-func AddChatMessage(chatMsg models.DBChatMessage, db *sql.DB) error {
-	query  := `
+func (r *chatRepository) AddChatMessage(chatMsg models.DBChatMessage) error {
+	query := `
 		INSERT INTO chat_messages (chat_id, message, response, created_at)
 		VALUES ($1, $2, $3, $4)
 	`
-
-	_, err := db.Exec(
-		query,
-		chatMsg.ChatId,
-		chatMsg.Message,
-		chatMsg.Response,
-		chatMsg.CreatedAt,
-	)
-
+	_, err := r.db.Exec(query, chatMsg.ChatId, chatMsg.Message, chatMsg.Response, chatMsg.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert chat message: %w", err)
 	}
-
 	return nil
 }
 
-
-func GetChats(chatId int, db *sql.DB) ([]models.DBChatMessage, string, error) {
+func (r *chatRepository) GetChats(chatId int) ([]models.DBChatMessage, string, error) {
 	var chatTitle string
-
-	titleQuery := `SELECT title FROM chats WHERE id = $1`
-	err := db.QueryRow(titleQuery, chatId).Scan(&chatTitle)
+	err := r.db.QueryRow(`SELECT title FROM chats WHERE id = $1`, chatId).Scan(&chatTitle)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, "", fmt.Errorf("chat not found: %w", err)
-		}
 		return nil, "", fmt.Errorf("failed to get chat title: %w", err)
 	}
 
-	// Get all chat msgs for this chat ordered by date
-	messagesQuery := `
-		SELECT chat_id, message, response, created_at 
-		FROM chat_messages 
-		WHERE chat_id = $1 
+	rows, err := r.db.Query(`
+		SELECT chat_id, message, response, created_at
+		FROM chat_messages
+		WHERE chat_id = $1
 		ORDER BY created_at ASC
-	`
-	
-	rows, err := db.Query(messagesQuery, chatId)
+	`, chatId)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to query chat messages: %w", err)
 	}
 	defer rows.Close()
 
 	var messages []models.DBChatMessage
-	
 	for rows.Next() {
 		var msg models.DBChatMessage
-		err := rows.Scan(
-			&msg.ChatId,
-			&msg.Message,
-			&msg.Response,
-			&msg.CreatedAt,
-		)
-		if err != nil {
+		if err := rows.Scan(&msg.ChatId, &msg.Message, &msg.Response, &msg.CreatedAt); err != nil {
 			return nil, "", fmt.Errorf("failed to scan chat message: %w", err)
 		}
 		messages = append(messages, msg)
 	}
-
 	if err = rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("error iterating chat messages: %w", err)
 	}
-
 	return messages, chatTitle, nil
 }
 
-func GetUserChats(userId int, db *sql.DB) ([]models.DBChats, error) {
-	query := `
+func (r *chatRepository) GetUserChats(userId int) ([]models.DBChats, error) {
+	rows, err := r.db.Query(`
 		SELECT id, user_id, title, created_at
 		FROM chats
 		WHERE user_id = $1
 		ORDER BY created_at ASC
-	`
-
-	rows, err := db.Query(query, userId)
+	`, userId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query chats: %w", err)
 	}
@@ -166,13 +130,7 @@ func GetUserChats(userId int, db *sql.DB) ([]models.DBChats, error) {
 	var chats []models.DBChats
 	for rows.Next() {
 		var chat models.DBChats
-		err := rows.Scan(
-			&chat.Id,
-			&chat.UserId,
-			&chat.Title,
-			&chat.CreatedAt,
-		)
-		if err != nil {
+		if err := rows.Scan(&chat.Id, &chat.UserId, &chat.Title, &chat.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan chats: %w", err)
 		}
 		chats = append(chats, chat)
@@ -228,4 +186,14 @@ func ConvertDBChatToHistoryResponse(dbChats []models.DBChatMessage, chatId int, 
 	}
 
 	return historyResponse
+}
+
+func (r *chatRepository) InitializeTables() error {
+	if err := r.InitializeChatsTable(); err != nil {
+		return err
+	}
+	if err := r.InitializeChatMessagesTable(); err != nil {
+		return err
+	}
+	return nil
 }

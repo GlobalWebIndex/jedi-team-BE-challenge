@@ -7,7 +7,6 @@ import (
 
 	_ "github.com/lib/pq"
 	"gateway/config"
-	"gateway/internal/repositories"
 )
 
 
@@ -38,21 +37,5 @@ func StartConn() (*sql.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("error pinging database: %w", err)
 	}
-	return db, nil
-}
-
-func InitDatabase() (*sql.DB, error) {
-	db, err := StartConn()
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-	if err := repositories.InitializeChatsTable(db); err != nil {
-		return nil, err
-	}
-
-	if err := repositories.InitializeChatMessagesTable(db); err != nil {
-		return nil, err
-	}
-
 	return db, nil
 }
