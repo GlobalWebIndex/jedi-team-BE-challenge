@@ -37,12 +37,11 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, chatId int)
 
 	prompt, err := repositories.RetrieveAndAugmentUserPrompt(chatMessage.Message)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ncountered issue while retrieving relavant documents: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("encountered issue while retrieving relavant documents: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	ollamaMessages = append(ollamaMessages, prompt...)
-
 
 	var title string
 
