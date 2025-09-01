@@ -56,7 +56,7 @@ func (r *ollamaRepository) SendOllamaRequest(url string, requestBody models.Olla
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 45 * time.Second}
 	resp, err := client.Post(url, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to Ollama: %w", err)

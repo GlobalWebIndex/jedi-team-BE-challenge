@@ -111,27 +111,27 @@ func (m *MockRagRepository) SendRagRequest(req models.RagRequest) ([]models.RagR
 	return m.generateRealisticRagResponse(req), nil
 }
 
-func (m *MockRagRepository) RetrieveAndAugmentUserPrompt(message string) ([]models.OllamaMessage, error) {
+func (m *MockRagRepository) RetrieveAndAugmentUserPrompt(message string) ([]models.OllamaMessage, string, error) {
 	m.CallCount["RetrieveAndAugmentUserPrompt"]++
 	m.LastAugmentMessage = message
 	
 	if m.RetrieveAndAugmentUserPromptError != nil {
-		return nil, m.RetrieveAndAugmentUserPromptError
+		return nil, "", m.RetrieveAndAugmentUserPromptError
 	}
 	
 	if m.SimulateTimeout {
-		return nil, errors.New("request timeout")
+		return nil, "", errors.New("request timeout")
 	}
 	
 	if m.SimulateNetworkError {
-		return nil, errors.New("network error: connection refused")
+		return nil, "", errors.New("network error: connection refused")
 	}
 	
 	if m.CustomAugmentedPrompt != nil {
-		return m.CustomAugmentedPrompt, nil
+		return m.CustomAugmentedPrompt, "", nil
 	}
 	
-	return m.generateRealisticAugmentedPrompt(message), nil
+	return m.generateRealisticAugmentedPrompt(message), "", nil
 }
 
 func (m *MockRagRepository) generateRealisticRagResponse(req models.RagRequest) []models.RagResponseItem {

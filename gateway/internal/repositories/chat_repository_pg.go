@@ -42,6 +42,7 @@ func (r *chatRepository) InitializeChatMessagesTable() error {
 			id SERIAL PRIMARY KEY,
 			chat_id INT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
 			message TEXT NOT NULL,
+			rag_context TEXT NOT NULL,
 			response TEXT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL
 		)
@@ -73,10 +74,10 @@ func (r *chatRepository) CreateChat(chat models.DBChats) (int, error) {
 
 func (r *chatRepository) AddChatMessage(chatMsg models.DBChatMessage) error {
 	query := `
-		INSERT INTO chat_messages (chat_id, message, response, created_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO chat_messages (chat_id, message, rag_context, response, created_at)
+		VALUES ($1, $2, $3, $4, $5)
 	`
-	_, err := r.db.Exec(query, chatMsg.ChatId, chatMsg.Message, chatMsg.Response, chatMsg.CreatedAt)
+	_, err := r.db.Exec(query, chatMsg.ChatId, chatMsg.Message, chatMsg.RagContext, chatMsg.Response, chatMsg.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert chat message: %w", err)
 	}
@@ -141,6 +142,10 @@ func (r *chatRepository) GetUserChats(userId int) ([]models.DBChats, error) {
 func ChatMsgDbOllama(dbChatMsgs []models.DBChatMessage) []models.OllamaMessage {
     var result []models.OllamaMessage
     for _, dbMsg := range dbChatMsgs {
+		RagContext := models.OllamaMessage{
+            Role:    "system",
+            Content: dbMsg.RagContext,
+		}
         ollamaMsg := models.OllamaMessage{
             Role:    "user",
             Content: dbMsg.Message,
@@ -149,7 +154,7 @@ func ChatMsgDbOllama(dbChatMsgs []models.DBChatMessage) []models.OllamaMessage {
             Role:    "assistant",
             Content: dbMsg.Response,
         }
-        result = append(result, ollamaMsg, ollamaResponse)
+        result = append(result, RagContext, ollamaMsg, ollamaResponse)
     }
     return result
 }

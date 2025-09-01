@@ -30,12 +30,12 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, chatRepo repositories.C
 
 	systemPrompt := models.OllamaMessage{
 		Role:    "system",
-		Content: "You are a question-answering assistant. You must answer the user's question ONLY using the information provided in the retrieved documents below. Do not use any outside knowledge, assumptions, or prior training data. If the answer is not explicitly contained in the provided documents, respond exactly with: \"I don’t have relevant information in the retrieved context to answer that question.\". However, if the question is highly relevant but not exactly matching one of the provided documents, answer based on what is relevant but clarify.",
+		Content: "You are a question-answering assistant. You must answer the user's question ONLY using the information provided in the retrieved documents given and the context of previous conversation. Do not use any outside knowledge, assumptions, or prior training data. If the answer is not explicitly contained in the provided documents, respond exactly with: \"I don’t have relevant information in the retrieved context to answer that question.\". However, if the question is highly relevant but not exactly matching one of the provided documents, answer based on what is relevant but clarify.",
 	}
 
 	ollamaMessages := []models.OllamaMessage{systemPrompt}
 
-	prompt, err := ragRepo.RetrieveAndAugmentUserPrompt(chatMessage.Message)
+	prompt, ragContext, err := ragRepo.RetrieveAndAugmentUserPrompt(chatMessage.Message)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("encountered issue while retrieving relavant documents: %v", err), http.StatusInternalServerError)
 		return
@@ -67,7 +67,6 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, chatRepo repositories.C
 	} else {
 		// Retrieve chat from db if exists and append to ollamaMessages for context
 		dbChats, chatTitle, err := chatRepo.GetChats(chatId)
-		fmt.Errorf("ERROR IS: %w", err)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "Chat not found", http.StatusNotFound)
@@ -96,10 +95,11 @@ func ChatHandler(w http.ResponseWriter, r *http.Request, chatRepo repositories.C
 
 	// Craft new db chat message
 	dbChatMessage := models.DBChatMessage{
-		ChatId:    chatId, //generated
-		Message:   chatMessage.Message,
-		Response:  ollamaResponse.Message.Content,
-		CreatedAt: time.Now(),
+		ChatId:    		chatId, //generated,
+		RagContext: 	ragContext, // Add Rag Context for follow up questions
+		Message:   		chatMessage.Message,
+		Response:  		ollamaResponse.Message.Content,
+		CreatedAt: 		time.Now(),
 	}
 	// Add new chat to DB
 	if err := chatRepo.AddChatMessage(dbChatMessage); err != nil {

@@ -13,6 +13,7 @@ import (
 	"gateway/internal/models"
 )
 
+var topK = 3 // top k ones to save in the db and return from here
 type ragRepositoryHTTP struct {
 	client *http.Client
 	url    string
@@ -61,13 +62,12 @@ func (r *ragRepositoryHTTP) SendRagRequest(request models.RagRequest) ([]models.
 	return ragResp, nil
 }
 
-func (r *ragRepositoryHTTP) RetrieveAndAugmentUserPrompt(message string) ([]models.OllamaMessage, error) {
+func (r *ragRepositoryHTTP) RetrieveAndAugmentUserPrompt(message string) ([]models.OllamaMessage, string, error) {
 	ragResponse, err := r.SendRagRequest(models.RagRequest{Message: message})
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve relevant info: %w", err)
+		return nil, "", fmt.Errorf("failed to retrieve relevant info: %w", err)
 	}
-
-	return ConvertRagResponseToOllamaMessages(message, ragResponse), nil
+	return ConvertRagResponseToOllamaMessages(message, ragResponse), ConvertRagResponseToString(ragResponse, topK), nil
 }
 
 func ConvertRagResponseToOllamaMessages(message string, response []models.RagResponseItem) []models.OllamaMessage {
@@ -75,7 +75,7 @@ func ConvertRagResponseToOllamaMessages(message string, response []models.RagRes
 	for i, v := range response {
 		b.WriteString(fmt.Sprintf("Document %d: %s\n\n", i+1, v.Sentence))
 	}
-
+	
 	return []models.OllamaMessage{
 		{
 			Role:    "system",
@@ -86,4 +86,14 @@ func ConvertRagResponseToOllamaMessages(message string, response []models.RagRes
 			Content: message,
 		},
 	}
+}
+
+// Since we can't keep all top 30 say rag responses in the db to provide in next conversations for future context
+// we need to find of a hack to only be able to keep say, top 3 in the db, but still provide top 30 for this message's
+func ConvertRagResponseToString(response []models.RagResponseItem, topK int) string {
+	var b strings.Builder
+	for i, v := range response[:min(topK, len(response))] {
+		b.WriteString(fmt.Sprintf("Document %d: %s\n\n", i+1, v.Sentence))
+	}
+	return b.String()
 }
