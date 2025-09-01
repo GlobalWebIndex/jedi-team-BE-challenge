@@ -6,7 +6,7 @@ This repository contains the solution for the Jedi Team Backend Engineering Chal
 
 ## Project Overview
 
-The chatbot is designed to answer questions based on GWI market research data. The system persists chat history and allows users to continue conversations or open multiple chats. It integrates an LLM (Ollama), a Python service for retrieval-augmented generation (RAG), and a PostgreSQL database. 
+The chatbot is designed to answer questions based on GWI market research data. The system persists chat history and allows users to continue conversations or open multiple chats. It integrates an LLM (Ollama), a Python service for retrieval-augmented generation (RAG), and a PostgreSQL database. Each chat is assigned an automatically generated title based on the first message.
 
 
 ### Architecture 🏗️
@@ -65,7 +65,7 @@ Req/Resp      │             ┼───────────────�
     ```gash
     nvidia-smi
     ```
- - Check NVIDIA Container Toolkit:
+ - Check NVIDIA Container Toolkit (your version might be different):
     ```gash
     docker run --rm --gpus all nvidia/cuda:12.1-base nvidia-smi
     ```
