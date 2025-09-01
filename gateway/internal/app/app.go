@@ -72,7 +72,11 @@ func SetupServer(deps ServerDependencies) (*http.Server, error) {
 		chat.GetChatHandler(w, r, deps.ChatRepo, chatID)
 	})
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {})
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	return &http.Server{
 		Addr:		cfg.Server.Address,

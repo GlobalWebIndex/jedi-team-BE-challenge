@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o gateway ./cmd/main.go
 
 FROM alpine:latest
 
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash curl
 
 WORKDIR /app
 

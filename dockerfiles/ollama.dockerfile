@@ -1,7 +1,9 @@
 FROM ollama/ollama:latest
 
-# Copy our entrypoint script
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 COPY entrypoint.sh /entrypoint.sh
+
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/bin/sh", "-c", "/entrypoint.sh"]

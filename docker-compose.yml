@@ -4,17 +4,17 @@ services:
       context: ./ollama
       dockerfile: ../dockerfiles/ollama.dockerfile
     container_name: ollama
-    environment:
-      - OLLAMA_MODEL=granite3-dense:8b
+    env_file:
+      - .env
     ports:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:11434/api/tags"]
       interval: 5s
-      timeout: 2s
-      retries: 20
+      timeout: 5s
+      retries: 10  
     deploy:
       resources:
         reservations:
@@ -46,7 +46,13 @@ services:
       dockerfile: ./dockerfiles/rag.dockerfile
     container_name: rag
     # volumes:
-    #   - ./data:/app/data:ro  # Mount data.md as read-only
+    #   - ./data:/app/data:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
     ports:
       - "8000:8000"
     deploy:
@@ -59,33 +65,53 @@ services:
       context: ./gateway
       dockerfile: ../dockerfiles/gateway.dockerfile
     container_name: gateway
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=granite3-dense:8b
+    env_file:
+      - .env
     ports:
       - "8080:8080"
     depends_on:
-      - rag
-      - postgres
-      - ollama
-
+      rag:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+  
   tests:
+    profiles: ["test"]
     build:
       context: .
       dockerfile: dockerfiles/tests.dockerfile
     depends_on:
-      - gateway
-      - postgres
-      - ollama
+      gateway:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
   k6:
     image: grafana/k6:latest
     container_name: k6
+    profiles: ["test"]
     volumes:
       - ./tests:/scripts
     entrypoint: [ "k6", "run", "/scripts/loadtest.js" ]
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      tests:
+        condition: service_completed_successfully
 
 volumes:
   ollama-data:
