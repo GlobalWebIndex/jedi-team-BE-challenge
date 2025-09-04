@@ -1,27 +1,182 @@
-# GWI - Jedi Team - Backend Engineering Challenge
+# 🧠 Multi-Service Question Matching System
 
-Welcome to the engineering challenge for the Jedi Team at GWI!
+This project consists of three interconnected services:
 
-This task is designed to help us understand how you approach software engineering problems and apply your skills in a real-world-inspired scenario. It focuses on backend engineering using **Go**, with optional extensions into **AI/LLMs**, **product thinking**, and **system design**. The Jedi team mainly works on and evolves the AI infrastructure of the company, so this exercise has a strong focus on that.
+1. **Question API (Go - Gin)** – Receives user questions and routes them through the Matching API, then stores the conversation in MongoDB.
+2. **Matching API (Python - Flask)** – Matches user questions to the best possible replies using semantic similarity.
+3. **MongoDB** – Stores all conversations, including questions and matched replies.
 
-While the base functionality is straightforward, we encourage you to go beyond the minimum requirements — creativity, thoughtful design, and clean code are all appreciated.
 
-## 🧪 Core Requirements
+---
 
-You are going to create a **chatbot** that helps GWI's clients answer questions based on market research data. Another tool has converted GWI's data into a **natural language** format and stored it in a database. You can find the data in `data.md`. You should use this data to answer users' questions.
+## 🚀 How to Deploy
 
-Build a web server in **Go** that exposes this chat functionality (you decide the communication method and the necessary endpoints). The discussion within the chat should be persisted, and the user should be able to continue the conversation from where it was left off. A single user can open multiple chats.
+All services are containerized using Docker. To bring everything up:
 
-## 🌟 Optional Enhancements
+### ✅ Prerequisites
 
-- If the answer to the user's question is not found in the data, the chatbot should decline to answer.
-- The user can give negative feedback on a message.
-- The chat should have an auto-generated title.
-- Include a **Dockerfile** and a **Makefile** or **Taskfile** to simplify local development.
-- Explain in the README how to run the application and the assumptions you made.
+- Docker & Docker Compose installed
+- Ports `5001`, `7004`, and `27017` available
 
-## 🧩 Submission
+---
 
-Just fork the current repository and send it to us!
+### 🐳 Step 1: Run All Services
 
-Good luck, potential colleague!
+```bash
+docker compose -f docker-compose.yml build --force-rm --no-cache && docker compose -f docker-compose.yml up
+```
+
+This command builds and starts:
+
+chat-bot (Go) on port 7004
+
+matching-api (Flask) on port 5001
+
+mongo (MongoDB) on port 27017
+
+
+### 🐳 Service Description
+#### 1. Question API (Go)
+
+Port: 8080
+
+Purpose: Accepts user questions, calls the Matching API to get a reply, and saves both the question and reply to MongoDB. You can choose the comparison algorithm used by specifying the "algorithm" field in the body, which can be one of ["words", "cosine", "fuzzy"]. If not specified it defaults to cosine.
+
+Endpoint:
+
+POST /api/question
+Content-Type: application/json
+
+Request:
+```json
+{
+    "sessionId": "myId",
+    "query": "Who is that?",
+    "algorithm": "cosine"
+}
+}
+```
+
+Response:
+```json
+{
+    "matched": true,
+    "reply": "Gen Z in Nashville are 106% more likely to find out about new brands and products through vlogs compared to the average person",
+    "score": 4.0
+}
+```
+
+
+#### 2. Matching API (Python + Flask)
+
+Port: 5001
+
+Purpose: Accepts a query and returns the best-matched response based on semantic similarity.
+
+This api consists of 3 endpoints
+POST /match-cosine
+This compares the user's query with the replies given using the cosine comparison method for comparing sentences.
+
+POST /match-words
+This compares the number of common words in the users query with those of the sentences and returns the most common, given a threashold.
+
+POST /match-fuzzy
+This compares the user's query with the replies given using a fuzzing comparison method for comparing sentences. (THIS DOES NOT work as expected but there was no time to fix it)
+
+Example Endpoint:
+
+POST /match-cosine
+Content-Type: application/json
+
+Request:
+```json
+{
+  "query": "How old are you?"
+}
+```
+
+Response:
+```json
+{
+    "matched": true,
+    "reply": "Gen Z in Nashville are 106% more likely to find out about new brands and products through vlogs compared to the average person",
+    "score": 4.0
+}
+```
+
+
+#### 3. MongoDB
+
+Port: 27017
+
+Database: test
+
+Collection: userhistory
+
+You can access MongoDB locally (e.g., via MongoDB Compass) or from a script:
+
+mongodb://root:password@localhost:27017/
+
+Example stored document:
+
+```json
+  {
+  "sessionId": "myID",
+  "createdAt": {
+    "$date": "2025-09-03T14:09:26.173Z"
+  },
+  "messages": [
+    {
+      "role": "question",
+      "text": "Who are you?",
+      "timestamp": {
+        "$date": "2025-09-03T14:09:26.173Z"
+      }
+    },
+    {
+      "role": "reply",
+      "text": "I am me",
+      "timestamp": {
+        "$date": "2025-09-03T14:10:07.144Z"
+      }
+    }
+  ]
+}
+```
+
+### ✅ To Do
+
+ - [ ] Add authentication - if required
+
+ - [ ] Tidy up and move hardcoded env variables to a file
+
+ - [ ] Refine structure
+
+ - [ ] WRITE TESTS: tesing performance and accuracy of each method and for different use cases
+
+ - [ ] Add rate limiting - important since the endpoint is open for exploitation
+
+ - [ ] Deploy to cloud (e.g., AWS/GCP/DigitalOcean) -  required
+
+ - [ ] Make the db history writting a background job
+
+ - [ ] Add chronjob that removes old conversations from mongodb
+
+ - [ ] Create function that deletes mongo db entry
+
+ - [ ] Fix fuzzy endpoint
+
+ - [ ] Use preparatory LLM method for making the query more concise and comparing with replies - downloading the model is SLOW and using open LLMs is not an option since the data is the intellectual property of the company and user should be informed about their questions being processed by an Open LLM Model
+
+ - [ ] Investigate why response is so slow
+
+
+### 📝 **Notes:** 
+
+Install Ollama:
+https://ollama.com/download
+
+ollama pull mistral
+
+Use it in Python:
+pip install ollama --> it was very time consuming to install the model so I omitted it, but the idea is that you can probably use an LLM to create a simpler question that will then will be able to find a reply int he set. https://ollama.com/download

@@ -1,0 +1,14 @@
+version: 1.0.0
+seeddata: false
+Logging:
+    stdout: false
+    level: debug
+    path: applog.log
+server:
+    port: ':7004'
+database:
+    host: 'mongo' # localhost if deploying api on its own locally/ mongo when deployed with docker compose
+    port: 27017
+    username: 'root'
+    password: 'password'
+    name: 'test'
